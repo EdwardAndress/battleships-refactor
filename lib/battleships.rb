@@ -1,58 +1,52 @@
-require 'terminal-table/import'
-require 'colorize'
-require_relative 'ship'
 require_relative 'board'
 
-# table = Terminal::Table.new :rows => rows
-
 class Game
-
-  COLUMN_CONVERTER = {"A" => 1, "B" => 2, "C" => 3, "D" => 4, "E" => 5, "F" => 6, "G" => 7}
-  MISS = "\u{274C}"
-
   def initialize
-    @playerBoard = Board.new("player")
-    @aiBoard = Board.new("ai")
+    @player_board = Board.new("Player 1")
+    @ai_board = Board.new("AI")
   end
 
   def playerMove
-    puts "Enter row to strike:"
-    row = gets.chomp.to_i
-    puts "Enter column to strike:"
-    column = COLUMN_CONVERTER[gets.chomp.upcase]
-    strike = [row, column]
-    @aiBoard.check_hit(strike)
+    while true do
+      puts "Choose where to attack."
+      strike = @player_board.get_location
+      if @ai_board.check_valid_strike(strike)
+        @ai_board.check_hit(strike, @player_board.player_name)
+        break
+      else
+        puts "You've already attacked there! This isn't an RTS. Choose another location."
+        next
+      end
+    end
   end
 
   def aiMove
-    while true
-      row = rand(1..7)
-      column = rand(1..7)
-      strike = [row, column]
-      if @playerBoard.board[strike[0]][strike[1]] != MISS
+    while true do
+      strike = @ai_board.get_ai_location
+      if @player_board.check_valid_strike(strike)
+        @player_board.check_hit(strike, @ai_board.player_name)
         break
       end
     end
-    @playerBoard.check_hit(strike)
   end
 
   #Unfinished
   def runGame
     gameRunning = true
-    @aiBoard.aiPlaceShips
-    @playerBoard.placeShips
+    @ai_board.ai_place_ships
+    @player_board.place_ships
     system "clear"
-    @playerBoard.print_board
-    @aiBoard.print_board
+    @player_board.print_board
+    @ai_board.print_board
     while gameRunning == true
       playerMove
       aiMove
-      @playerBoard.print_board
-      @aiBoard.print_board
-      if @playerBoard.ships.length == 0
+      @player_board.print_board
+      @ai_board.print_board
+      if @player_board.ships.length == 0
         puts "You lose!"
         break
-      elsif @aiBoard.ships.length == 0
+      elsif @ai_board.ships.length == 0
         puts "You win!"
         break
       end

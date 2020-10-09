@@ -2,9 +2,8 @@ require_relative 'ship'
 require 'terminal-table/import'
 
 class Board
-  attr_reader :board, :ships
+  attr_reader :board, :ships, :player_name
 
-  
   WATER = "\u{1F30A}"
   BOAT = "\u{1F6A2}"
   EXPLOSION = "\u{1F4A5}"
@@ -20,14 +19,11 @@ class Board
   def create_board
     rows = []
     rows << [" ","A", "B", "C", "D", "E", "F", "G"]
-    rows << ["1", WATER, WATER, WATER, WATER, WATER, WATER, WATER]
-    rows << ["2", WATER, WATER, WATER, WATER, WATER, WATER, WATER]
-    rows << ["3", WATER, WATER, WATER, WATER, WATER, WATER, WATER]
-    rows << ["4", WATER, WATER, WATER, WATER, WATER, WATER, WATER]
-    rows << ["5", WATER, WATER, WATER, WATER, WATER, WATER, WATER]
-    rows << ["6", WATER, WATER, WATER, WATER, WATER, WATER, WATER]
-    rows << ["7", WATER, WATER, WATER, WATER, WATER, WATER, WATER]
-    
+    i = 1
+    7.times do
+      rows << [i.to_s, WATER, WATER, WATER, WATER, WATER, WATER, WATER]
+      i += 1
+    end
     rows
   end
 
@@ -35,152 +31,183 @@ class Board
     puts Terminal::Table.new :title => "#{@player_name} Board:", :rows => @board
   end
 
-  def placeShips
+  def place_ships
     @ships << Ship.new(4)
     @ships << Ship.new(3)
     @ships << Ship.new(2)
     @ships << Ship.new(2)
-    row = 0
-    column = ""
-    direction = ""
+    
     @ships.each do |ship|
-      system "clear"
-      puts Terminal::Table.new :title => "Your Board:", :rows => @board
+      place_ship(ship)
+    end
+  end
+
+  def ai_place_ships
+    @ships << Ship.new(4)
+    @ships << Ship.new(3)
+    @ships << Ship.new(2)
+    @ships << Ship.new(2)
+    @ships.each do |ship|
+      place_ai_ship(ship)
+    end
+  end
+
+  def place_ship(ship)
+    system "clear"
+    while true do
       puts "Please place your ship of size: #{ship.size}"
-      puts "Enter a row to start your ship on (1-7)."
-      row = gets.chomp.to_i
-      puts "Enter a column to start your ship on (A-G)"
-      column = gets.chomp
-
-      #Loop to get direction until valid
-      while true
-        # Input validation
-        while true
-          puts "Enter direction for your ship to face (up, down, left, right)"
-          direction = gets.chomp
-          if direction != "up" && direction != "down" && direction != "left" && direction != "right"
-            puts "Invalid direction."
-          else
-            break
-          end
-        end
-        if direction == "up" && (row - (ship.size - 1) < 0)
-          puts "Ship does not fit."
-        elsif direction == "down" && (row + (ship.size - 1) > 7)
-          puts "Ship does not fit."
-        elsif direction == "left" && (COLUMN_CONVERTER[column.upcase] - (ship.size - 1) < 0)
-          puts "Ship does not fit."
-        elsif direction == "right" && (COLUMN_CONVERTER[column.upcase] + (ship.size - 1) > 7)
-          puts "Ship does not fit."
-        else
-          break
-        end
+      print_board
+      location = get_location
+      direction = get_direction
+      unless validate_fits_on_board(location, direction, ship)
+        next
       end
-
-      #Set ship coords
-      shipCoords = []
-      shipCoords << [row, COLUMN_CONVERTER[column.upcase]]
-      case direction
-      when "up"
-        for i in 1..(ship.size - 1) do
-          shipCoords << [row - i, COLUMN_CONVERTER[column.upcase]]
-        end
-      when "down"
-        for i in 1..(ship.size - 1) do
-          shipCoords << [row + i, COLUMN_CONVERTER[column.upcase]]
-        end
-      when "left"
-        for i in 1..(ship.size - 1) do
-          shipCoords << [row, COLUMN_CONVERTER[column.upcase] - i]
-        end
-      when "right"
-        for i in 1..(ship.size - 1) do
-          shipCoords << [row, COLUMN_CONVERTER[column.upcase] + i]
-        end
+      ship_coordinates = populate_ship_coordinates(location, direction, ship)
+      unless validate_not_clashing(ship_coordinates)
+        puts "There is already a ship there. Don't crash your ships into each other, let the enemy sink them."
+        next
       end
+      add_ship_to_board(ship_coordinates, ship)
+      break
+    end
+  end
 
-      # Place ships on board
-      shipCoords.each do |coord|
-        @board[coord[0]][coord[1]] = BOAT
-        ship.coords << [coord[0],coord[1]]
+  def place_ai_ship(ship)
+    while true do
+      location = get_ai_location
+      direction = get_ai_direction
+      unless validate_fits_on_board(location, direction, ship)
+        next
+      end
+      ship_coordinates = populate_ship_coordinates(location, direction, ship)
+      unless validate_not_clashing(ship_coordinates)
+        next
+      end
+      add_ship_to_board(ship_coordinates, ship)
+      break
+    end
+  end
+
+  def get_location
+    valid = false
+    user_input = ""
+    until valid do
+      puts "Enter a set of coordinates with letter first, no spaces (eg. A1)"
+      user_input = gets.chomp
+      valid = validate_input(user_input)
+    end
+    row = user_input[1].to_i
+    column = COLUMN_CONVERTER[user_input[0].upcase]
+    coordinates = [row, column]
+    coordinates
+  end
+
+  def get_ai_location
+    row = rand(1..7)
+    column = rand(1..7)
+    coordinates = [row, column]
+    coordinates
+  end
+  
+  def get_direction
+    while true do
+      puts "Enter direction for your ship to face (up, down, left, right)"
+      direction = gets.chomp.downcase
+      if ["up", "down", "left", "right"].include?(direction)
+        return direction
+      else
+        puts "Invalid direction, please try again."
       end
     end
   end
 
-  def aiPlaceShips
-    directions = ["right", "left", "up", "down"]
-    @ships << Ship.new(4)
-    @ships << Ship.new(3)
-    @ships << Ship.new(2)
-    @ships << Ship.new(2)
+  def get_ai_direction
+    directions = ["up", "down", "left", "right"]
+    direction = directions[rand(0..4)]
+    direction
+  end
+
+  def validate_input(coordinates)
+    valid = true
+    valid = false unless coordinates.length == 2
+    valid = false unless coordinates[0] =~ /[A-Ga-g]/
+    valid = false unless coordinates[1] =~ /[1-7]/
+    unless valid
+      puts "Invalid input, please try again"
+    end
+    return valid
+  end
+
+  def validate_fits_on_board(coordinates, direction, ship)
+    row = coordinates[0]
+    column = coordinates[1]
+    direction_valid = false
+    #check if ship fits on board
+    if direction == "up" && (row - ship.size < 0)
+      puts "Ship does not fit."
+    elsif direction == "down" && (row + ship.size > 7)
+      puts "Ship does not fit."
+    elsif direction == "left" && (column - ship.size < 0)
+      puts "Ship does not fit."
+    elsif direction == "right" && (column + ship.size > 7)
+      puts "Ship does not fit."
+    else
+      direction_valid = true
+    end
+    direction_valid
+  end
+
+  def validate_not_clashing(ship_coordinates)
     @ships.each do |ship|
-      # while true to re-place if ship clashes
-      shipPlaced = false
-      while shipPlaced == false
-        row = rand(1..7)
-        column = rand(1..7)
-        direction = ""
-        # Sets random direction until valid
-        while true
-          direction = directions[rand(0..4)]
-          if direction == "up" && (row - ship.size >= 0)
-            break
-          elsif direction == "down" && (row + ship.size <= 7)
-            break
-          elsif direction == "left" && (column - ship.size >= 0)
-            break
-          elsif direction == "right" && (column + ship.size <= 7)
-            break
-          end
+      ship.coords.each do |coord|
+        if ship_coordinates.include?(coord)
+          return false
         end
+      end
+    end
+    true
+  end
 
-        # Pushes ship coordinates
-        shipCoords = []
-        shipCoords << [row, column]
-        case direction
-        when "up"
-          for i in 1..(ship.size - 1) do
-            shipCoords << [row - i, column]
-          end
-        when "down"
-          for i in 1..(ship.size - 1) do
-            shipCoords << [row + i, column]
-          end
-        when "left"
-          for i in 1..(ship.size - 1) do
-            shipCoords << [row, column - i]
-          end
-        when "right"
-          for i in 1..(ship.size - 1) do
-            shipCoords << [row, column + i]
-          end
-        end
+  def populate_ship_coordinates(coordinates, direction, ship)
+    ship_coordinates = []
+    row = coordinates[0]
+    column = coordinates[1]
+    ship_coordinates << coordinates
+    case direction
+    when "up"
+      for i in 1..(ship.size - 1) do
+        ship_coordinates << [row - i, column]
+      end
+    when "down"
+      for i in 1..(ship.size - 1) do
+        ship_coordinates << [row + i, column]
+      end
+    when "left"
+      for i in 1..(ship.size - 1) do
+        ship_coordinates << [row, column - i]
+      end
+    when "right"
+      for i in 1..(ship.size - 1) do
+        ship_coordinates << [row, column + i]
+      end
+    end
+    ship_coordinates
+  end
 
-        # Checks if ship clashes with previously placed ships
-        clashing = false
-        shipCoords.each do |coord|
-          @ships.each do |aiShip|
-            aiShip.coords.each do |coord2|
-              if coord == coord2
-                clashing = true
-              end
-            end
-          end
-        end
-
-        # Places ship if not clashing
-        if !clashing
-          shipCoords.each do |coord|
-            # For testing AI placement: @opBoard[coord[0]][coord[1]] = boat
-            ship.coords << [coord[0],coord[1]]
-          end
-          shipPlaced = true
-        end
+  def add_ship_to_board(coordinates, ship)
+    coordinates.each do |coord|
+      ship.coords << [coord[0],coord[1]]
+      unless @player_name == "AI"
+        @board[coord[0]][coord[1]] = BOAT
       end
     end
   end
 
-  def check_hit(strike)
+  def check_valid_strike(strike)
+    return @board[strike[0]][strike[1]] == WATER
+  end
+
+  def check_hit(strike, player_name)
     hit = false
     destroyed = false
 
@@ -197,21 +224,21 @@ class Board
           break
         end
       end
-      if hit
-        break
-      end
     end
+    print_results(strike, hit, destroyed, player_name)
+  end
+
+  def print_results(strike, hit, destroyed, player_name)
     system "clear"
     if destroyed
-      puts "You destroyed a ship!"
+      puts "#{player_name} destroyed a ship!"
       @board[strike[0]][strike[1]] = EXPLOSION
     elsif hit
-      puts "You hit!"
+      puts "#{player_name} hit!"
       @board[strike[0]][strike[1]] = EXPLOSION
     else
-      puts "You missed!"
+      puts "#{player_name} missed!"
       @board[strike[0]][strike[1]] = MISS
     end
   end
-
 end

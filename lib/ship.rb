@@ -1,6 +1,5 @@
 class Ship
-    attr_accessor :size
-    attr_accessor :coords
+    attr_accessor :size, :coords
   
     def initialize(size)
       @size = size
