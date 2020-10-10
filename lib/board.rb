@@ -17,14 +17,21 @@ class Board
   end
 
   def create_board
-    rows = []
-    rows << [" ","A", "B", "C", "D", "E", "F", "G"]
-    i = 1
-    7.times do
-      rows << [i.to_s, WATER, WATER, WATER, WATER, WATER, WATER, WATER]
-      i += 1
+    (1..7).each_with_object(new_board) do |row_number, new_board|
+      new_board << row_with_number(row_number)
     end
-    rows
+  end
+
+  def new_board
+    [header]
+  end
+
+  def header
+    [" ","A", "B", "C", "D", "E", "F", "G"]
+  end
+
+  def row_with_number(int)
+    [int.to_s, WATER, WATER, WATER, WATER, WATER, WATER, WATER]
   end
 
   def print_board
